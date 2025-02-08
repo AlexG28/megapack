@@ -11,6 +11,7 @@ func main() {
 	fmt.Println("hello there general kenobi")
 
 	http.HandleFunc("/telemetry", handlers.TelemetryHandler)
+	http.HandleFunc("/health", handlers.HealthCheck)
 
 	port := "8080"
 	log.Printf("API gateway starting up on port %v\n", port)
