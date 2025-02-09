@@ -5,7 +5,27 @@ services:
     ports: 
       - "8080:8080"
   
+  data-ingestion: 
+    build: ./data-ingestion
+    ports: 
+      - "8081:8080"
+    depends_on:
+      - api-gateway
+      - timescaledb
+
+  timescaledb: 
+    image: timescale/timescaledb:latest-pg16
+    ports: 
+      - "5432:5432" 
+    environment:
+      - POSTGRES_PASSWORD=teslagivemejob
+    # volumes: 
+    #   - timescaledb_data:/var/lib/postgresql/data # persist data in docker volume  
+
+
   simulator: 
     build: ./simulator
     depends_on: 
       - api-gateway
+
+  
