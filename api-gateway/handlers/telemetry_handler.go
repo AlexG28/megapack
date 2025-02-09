@@ -3,7 +3,6 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 )
 
@@ -31,9 +30,7 @@ func TelemetryHandler(w http.ResponseWriter, r *http.Request) {
 
 	defer r.Body.Close()
 
-	log.Printf("Received telemetry data: %+v\n", telData)
-
-	// add validation here
+	// log.Printf("Received telemetry data: %+v\n", telData)
 
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprintln(w, "telemetry data received and processed")

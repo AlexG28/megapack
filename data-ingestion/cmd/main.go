@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -25,17 +26,25 @@ func main() {
 
 	defer conn.Close()
 
-	testConnection(conn)
+	healthCheck(conn)
 
-	fmt.Printf("seems to be working correctly???")
+	fmt.Print("Ready to accept data")
+
+	queryCreateTable := `CREATE TABLE sensors (id SERIAL PRIMARY KEY, type VARCHAR(50), location VARCHAR(50));`
+	_, err = conn.Exec(queryCreateTable)
+	if err != nil {
+		log.Fatalf("Unable to create SENSORS table: %v\n", err)
+	}
+	fmt.Println("Successfully created relational table SENSORS")
+
 	os.Exit(0)
 }
 
-func testConnection(conn *pgx.Conn) {
-	var greeting string
-	err := conn.QueryRow("select 'Hello, Timescale!'").Scan(&greeting)
+func healthCheck(conn *pgx.Conn) {
+	ctx := context.Background()
+	err := conn.Ping(ctx)
 	if err != nil {
 		log.Fatalf("Unable to connect to database: %v\n", err)
 	}
-	fmt.Println(greeting)
+	log.Printf("Connection Successfull")
 }
