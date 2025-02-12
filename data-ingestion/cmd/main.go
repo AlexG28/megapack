@@ -2,12 +2,21 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
-	"os"
+	"net/http"
 
 	"github.com/jackc/pgx"
 )
+
+type TelemetryData struct {
+	UnitID             string  `json:"unit_id"`
+	Timestamp          string  `json:"timestamp"`
+	TemperatureCelcius float32 `json:"temperature_celsius"`
+	VoltageVolts       float32 `json:"voltage_volts"`
+	ChargeLevelPercent float32 `json:"charge_level_percent"`
+}
 
 func main() {
 	connStruct := pgx.ConnConfig{
@@ -28,16 +37,47 @@ func main() {
 
 	healthCheck(conn)
 
+	err = createTable(conn)
+
+	if err != nil {
+		log.Printf("Unable to create database: %v\n", err)
+	}
+
 	fmt.Print("Ready to accept data")
 
-	queryCreateTable := `CREATE TABLE sensors (id SERIAL PRIMARY KEY, type VARCHAR(50), location VARCHAR(50));`
-	_, err = conn.Exec(queryCreateTable)
-	if err != nil {
-		log.Fatalf("Unable to create SENSORS table: %v\n", err)
-	}
-	fmt.Println("Successfully created relational table SENSORS")
+	dataChan := make(chan TelemetryData, 100)
 
-	os.Exit(0)
+	go processData(conn, dataChan)
+
+	http.HandleFunc("/ingest", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var telData TelemetryData
+
+		decoder := json.NewDecoder(r.Body)
+		if err := decoder.Decode(&telData); err != nil {
+			http.Error(w, "Error decoding Json", http.StatusBadRequest)
+			return
+		}
+
+		defer r.Body.Close()
+
+		dataChan <- telData
+
+		w.WriteHeader(http.StatusOK)
+	})
+	port := "8080"
+	log.Printf("API gateway starting up on port %v\n", port)
+
+	err = http.ListenAndServe(":"+port, nil)
+	if err != nil {
+		log.Fatalf("server failed to start: %v", err)
+	}
+	log.Println("Listening and serving!")
+
 }
 
 func healthCheck(conn *pgx.Conn) {
@@ -47,4 +87,32 @@ func healthCheck(conn *pgx.Conn) {
 		log.Fatalf("Unable to connect to database: %v\n", err)
 	}
 	log.Printf("Connection Successfull")
+}
+
+func createTable(conn *pgx.Conn) error {
+	sql := `CREATE TABLE telemetry_data (
+		unit_id VARCHAR(255),
+		timestamp VARCHAR(255),
+		temperature_celsius FLOAT,
+		voltage_volts FLOAT,
+		charge_level_percent FLOAT
+	);`
+
+	_, err := conn.Exec(sql)
+
+	return err
+}
+
+func processData(conn *pgx.Conn, dataChan <-chan TelemetryData) {
+	for data := range dataChan {
+		query := `INSERT INTO telemetry_data (unit_id, timestamp, temperature_celsius, voltage_volts, charge_level_percent) VALUES ($1, $2::timestamptz, $3, $4, $5)`
+
+		_, err := conn.Exec(query, data.UnitID, data.Timestamp, data.TemperatureCelcius, data.VoltageVolts, data.ChargeLevelPercent)
+
+		if err != nil {
+			log.Printf("The error that occured in processData: %v\n", err)
+		}
+
+		log.Printf("successful data submission: %v\n", data)
+	}
 }

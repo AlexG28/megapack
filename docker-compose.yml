@@ -7,8 +7,6 @@ services:
   
   data-ingestion: 
     build: ./data-ingestion
-    ports: 
-      - "8081:8080"
     depends_on:
       - api-gateway
       - timescaledb

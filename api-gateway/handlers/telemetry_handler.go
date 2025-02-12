@@ -1,8 +1,10 @@
 package handlers
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 )
 
@@ -32,6 +34,45 @@ func TelemetryHandler(w http.ResponseWriter, r *http.Request) {
 
 	// log.Printf("Received telemetry data: %+v\n", telData)
 
+	err := SendToIngestion(telData)
+
+	if err != nil {
+		log.Printf("Unable to send to ingestion: %v\n", err)
+	}
+
 	w.WriteHeader(http.StatusOK)
 	fmt.Fprintln(w, "telemetry data received and processed")
+}
+
+func SendToIngestion(telData TelemetryData) error {
+	url := "http://data-ingestion:8080/ingest"
+
+	jsonData, err := json.Marshal(telData)
+
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("Incorrect Status: %v", resp.StatusCode)
+	}
+
+	defer resp.Body.Close()
+
+	return nil
 }
