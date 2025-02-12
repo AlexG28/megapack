@@ -4,8 +4,19 @@ from faker.providers import internet
 import time
 import random
 import json
+import signal
 
 fake = Faker()
+
+should_exit = False
+
+def handle_exit_signal(signum, frame):
+    global should_exit 
+    print("Received exit signal. Shutting down...")
+    should_exit = True
+
+signal.signal(signal.SIGTERM, handle_exit_signal)
+signal.signal(signal.SIGINT, handle_exit_signal)
 
 def simulate_megapack_data(unit_id):
     timestamp = fake.iso8601()
@@ -35,10 +46,13 @@ def send_data_to_api_gateway(data, api_url="http://api-gateway:8080/telemetry"):
 
 
 if __name__ == "__main__":
-    id = "simulated-megapack-001"
     
-    while True: 
+    while not should_exit: 
+        n = random.randint(1, 10)
+        id = f"simulated-megapack-{n}"
         data = simulate_megapack_data(id)
         send_data_to_api_gateway(data)
         time.sleep(1)
+
+    print("Simulator ending")
 
