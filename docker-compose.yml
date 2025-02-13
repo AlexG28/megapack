@@ -17,13 +17,15 @@ services:
       - "5432:5432" 
     environment:
       - POSTGRES_PASSWORD=teslagivemejob
-    # volumes: 
-    #   - timescaledb_data:/var/lib/postgresql/data # persist data in docker volume  
-
+    volumes: 
+      - timescaledb_data:/var/lib/postgresql/data 
 
   simulator: 
     build: ./simulator
     depends_on: 
       - api-gateway
+
+volumes:
+  timescaledb_data:
 
   

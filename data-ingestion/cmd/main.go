@@ -90,6 +90,22 @@ func healthCheck(conn *pgx.Conn) {
 }
 
 func createTable(conn *pgx.Conn) error {
+	var exists bool
+	err := conn.QueryRow(`
+	SELECT EXISTS (
+		SELECT FROM information_schema.tables 
+		WHERE table_name = 'telemetry_data'
+	)`).Scan(&exists)
+
+	if err != nil {
+		return fmt.Errorf("error checking if table exists: %w", err)
+	}
+
+	if exists {
+		log.Printf("The table already exists!")
+		return nil
+	}
+
 	sql := `CREATE TABLE telemetry_data (
 		unit_id VARCHAR(255),
 		timestamp VARCHAR(255),
@@ -98,9 +114,15 @@ func createTable(conn *pgx.Conn) error {
 		charge_level_percent FLOAT
 	);`
 
-	_, err := conn.Exec(sql)
+	_, err = conn.Exec(sql)
 
-	return err
+	if err != nil {
+		return fmt.Errorf("error creating table: %w", err)
+	}
+
+	log.Printf("Created table")
+
+	return nil
 }
 
 func processData(conn *pgx.Conn, dataChan <-chan TelemetryData) {
