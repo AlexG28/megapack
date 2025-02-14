@@ -20,6 +20,12 @@ services:
     volumes: 
       - timescaledb_data:/var/lib/postgresql/data 
 
+  monitoring: 
+    build: ./monitoring
+    depends_on:
+      - data-ingestion
+      - timescaledb
+
   simulator: 
     build: ./simulator
     depends_on: 

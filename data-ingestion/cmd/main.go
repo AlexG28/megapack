@@ -35,7 +35,9 @@ func main() {
 
 	defer conn.Close()
 
-	healthCheck(conn)
+	if err = healthCheck(conn); err != nil {
+		log.Printf("Health check failed: %v\n", err)
+	}
 
 	err = createTable(conn)
 
@@ -80,13 +82,15 @@ func main() {
 
 }
 
-func healthCheck(conn *pgx.Conn) {
+func healthCheck(conn *pgx.Conn) error {
 	ctx := context.Background()
+
 	err := conn.Ping(ctx)
 	if err != nil {
-		log.Fatalf("Unable to connect to database: %v\n", err)
+		return fmt.Errorf("Ingestion DB healthcheck failed: %v\n", err)
 	}
-	log.Printf("Connection Successfull")
+	log.Printf("Healthcheck Successfull!")
+	return nil
 }
 
 func createTable(conn *pgx.Conn) error {
@@ -136,5 +140,9 @@ func processData(conn *pgx.Conn, dataChan <-chan TelemetryData) {
 		}
 
 		log.Printf("successful data submission: %v\n", data)
+
+		if err != nil {
+			log.Printf("%v\n", err)
+		}
 	}
 }
