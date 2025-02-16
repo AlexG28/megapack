@@ -2,6 +2,7 @@ import requests
 from faker import Faker
 from faker.providers import internet
 import time
+import datetime
 import random
 import json
 import signal
@@ -19,7 +20,8 @@ signal.signal(signal.SIGTERM, handle_exit_signal)
 signal.signal(signal.SIGINT, handle_exit_signal)
 
 def simulate_megapack_data(unit_id):
-    timestamp = fake.iso8601()
+    timestamp = datetime.datetime.now().isoformat()
+    
     temperature_celsius = 20 + random.uniform(-5, 5) # Example: 20 +/- 5 degrees C
     voltage_volts = 475 + random.uniform(-10, 10)   # Example: 475 +/- 10 Volts
     charge_level_percent = 30 + random.uniform(0, 70) # Example: Charge level between 30% and 100%

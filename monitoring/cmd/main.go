@@ -4,18 +4,33 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"monitoring/metrics"
+	"monitoring/model"
 	"time"
 
 	"github.com/jackc/pgx"
 )
 
+// type Row struct {
+// 	unitID             string
+// 	temperatureCelsius float64
+// 	voltageVolts       float64
+// 	chargeLevelPercent float64
+// }
+
+// type TelemetryData struct {
+// 	UnitID             string  `json:"unit_id"`
+// 	Timestamp          string  `json:"timestamp"`
+// 	TemperatureCelcius float32 `json:"temperature_celsius"`
+// 	VoltageVolts       float32 `json:"voltage_volts"`
+// 	ChargeLevelPercent float32 `json:"charge_level_percent"`
+// }
+
 func main() {
-	fmt.Println("hello there, starting 5 second sleep.")
-	time.Sleep(time.Second * 5)
-	fmt.Println("Waking up!!")
-
 	conn, err := establishConnection()
-
+	log.Print("sleeping for 5 seconds")
+	time.Sleep(time.Second * 5)
+	log.Print("waking up")
 	if err != nil {
 		log.Fatalf(err.Error())
 	}
@@ -26,14 +41,13 @@ func main() {
 
 	defer conn.Close()
 
-	for i := range 10 {
-		fmt.Printf("Attempt %v\n", i)
-		if err := getSomeData(conn); err != nil {
-			time.Sleep(time.Second * 1)
-		}
-		time.Sleep(time.Second * 2)
+	last100Rows, err := getLast100Rows(conn)
+
+	if err != nil {
+		log.Fatalf("monitoring failed: %v\n", err)
 	}
 
+	metrics.PrintFirstAndLast(last100Rows)
 }
 
 func establishConnection() (*pgx.Conn, error) {
@@ -48,7 +62,7 @@ func establishConnection() (*pgx.Conn, error) {
 	conn, err := pgx.Connect(connStruct)
 
 	if err != nil {
-		return nil, fmt.Errorf("Monitoring failed to connect to DB: %v\n", err)
+		return nil, fmt.Errorf("monitoring failed to connect to DB: %v", err)
 	}
 
 	log.Println("Monitoring successfully connected to DB!")
@@ -61,58 +75,52 @@ func healthCheck(conn *pgx.Conn) error {
 
 	err := conn.Ping(ctx)
 	if err != nil {
-		return fmt.Errorf("Monitoring DB healthcheck failed: %v\n", err)
+		return fmt.Errorf("monitoring DB healthcheck failed: %v", err)
 	}
 	log.Printf("Healthcheck Successfull!")
 	return nil
 }
 
-func getSomeData(conn *pgx.Conn) error {
+func getLast100Rows(conn *pgx.Conn) ([]model.TelemetryData, error) {
 	err := currentRowCount(conn)
 	if err != nil {
 		log.Fatalf("rip: %v", err)
 	}
 
 	query := `
-        SELECT unit_id, temperature_celsius, voltage_volts, charge_level_percent 
+        SELECT unit_id, timestamp, temperature_celsius, voltage_volts, charge_level_percent 
         FROM telemetry_data 
-        LIMIT 10;
+		ORDER BY timestamp DESC
+        LIMIT 100;
     `
 
 	rows, err := conn.Query(query)
 	if err != nil {
-		return fmt.Errorf("error executing query: %v", err)
+		return nil, fmt.Errorf("error executing query: %v", err)
 	}
 	defer rows.Close()
-
-	log.Println("Successfully got rows")
 	rowCount := 0
+	output := make([]model.TelemetryData, 100)
+
 	for rows.Next() {
-		rowCount++
-		var (
-			unitID             string
-			temperatureCelsius float64
-			voltageVolts       float64
-			chargeLevelPercent float64
-		)
-		err := rows.Scan(&unitID, &temperatureCelsius, &voltageVolts, &chargeLevelPercent)
+		var row model.TelemetryData
+		err := rows.Scan(&row.UnitID, &row.Timestamp, &row.TemperatureCelcius, &row.VoltageVolts, &row.ChargeLevelPercent)
 		if err != nil {
 			log.Printf("error scanning row: %v", err)
 		}
-
-		fmt.Printf("Row %d: Unit ID: %s Temperature: %.2f°C, Voltage: %.2fV, Charge Level: %.2f\n",
-			rowCount, unitID, temperatureCelsius, voltageVolts, chargeLevelPercent)
+		output[rowCount] = row
+		rowCount++
 	}
 
 	if err := rows.Err(); err != nil {
-		return fmt.Errorf("error after scanning rows: %v", err)
+		return nil, fmt.Errorf("error after scanning rows: %v", err)
 	}
 
 	if rowCount == 0 {
 		fmt.Println("No rows returned from the query.")
 	}
 
-	return nil
+	return output, nil
 }
 
 func currentRowCount(conn *pgx.Conn) error {
@@ -121,7 +129,7 @@ func currentRowCount(conn *pgx.Conn) error {
 	err := conn.QueryRow("SELECT COUNT(*) FROM telemetry_data").Scan(&count)
 
 	if err != nil {
-		return fmt.Errorf("Error occurred when counting lines: %v\n", err)
+		return fmt.Errorf("error occurred when counting lines: %v", err)
 	}
 
 	log.Printf("The row count is: %v\n", count)
