@@ -2,13 +2,15 @@ package metrics
 
 import (
 	"fmt"
-	"log"
 	"monitoring/model"
 )
 
-func PrintFirstAndLast(arr []model.TelemetryData) {
-	log.Println("Printing first and last:::")
+func RequestsPerSecond(arr []model.TelemetryData) {
 	len := len(arr)
-	fmt.Printf("arr[0]: %v\n", arr[0])
-	fmt.Printf("arr[len-1]: %v\n", arr[len-1])
+	first := arr[0].Timestamp
+	last := arr[len-1].Timestamp
+	diff := first.Sub(last)
+
+	fmt.Printf("Time Difference: %v   total seconds: %v\n", diff, diff.Seconds())
+	fmt.Printf("Requests per second: %.3f\n", float64(len)/diff.Seconds())
 }

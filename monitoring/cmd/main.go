@@ -11,26 +11,13 @@ import (
 	"github.com/jackc/pgx"
 )
 
-// type Row struct {
-// 	unitID             string
-// 	temperatureCelsius float64
-// 	voltageVolts       float64
-// 	chargeLevelPercent float64
-// }
-
-// type TelemetryData struct {
-// 	UnitID             string  `json:"unit_id"`
-// 	Timestamp          string  `json:"timestamp"`
-// 	TemperatureCelcius float32 `json:"temperature_celsius"`
-// 	VoltageVolts       float32 `json:"voltage_volts"`
-// 	ChargeLevelPercent float32 `json:"charge_level_percent"`
-// }
-
 func main() {
 	conn, err := establishConnection()
-	log.Print("sleeping for 5 seconds")
-	time.Sleep(time.Second * 5)
+
+	log.Print("sleeping for 2 seconds")
+	time.Sleep(time.Second * 2)
 	log.Print("waking up")
+
 	if err != nil {
 		log.Fatalf(err.Error())
 	}
@@ -41,13 +28,20 @@ func main() {
 
 	defer conn.Close()
 
-	last100Rows, err := getLast100Rows(conn)
+	for i := range 20 {
+		log.Printf("Iteration: %v\n", i)
 
-	if err != nil {
-		log.Fatalf("monitoring failed: %v\n", err)
+		last100Rows, err := getLast100Rows(conn)
+
+		if err != nil {
+			log.Fatalf("monitoring failed: %v\n", err)
+		}
+
+		metrics.RequestsPerSecond(last100Rows)
+
+		time.Sleep(time.Second * 2)
 	}
 
-	metrics.PrintFirstAndLast(last100Rows)
 }
 
 func establishConnection() (*pgx.Conn, error) {
@@ -101,13 +95,22 @@ func getLast100Rows(conn *pgx.Conn) ([]model.TelemetryData, error) {
 	defer rows.Close()
 	rowCount := 0
 	output := make([]model.TelemetryData, 100)
+	var timestamp string
 
 	for rows.Next() {
 		var row model.TelemetryData
-		err := rows.Scan(&row.UnitID, &row.Timestamp, &row.TemperatureCelcius, &row.VoltageVolts, &row.ChargeLevelPercent)
+		err := rows.Scan(&row.UnitID, &timestamp, &row.TemperatureCelcius, &row.VoltageVolts, &row.ChargeLevelPercent)
 		if err != nil {
-			log.Printf("error scanning row: %v", err)
+			return nil, fmt.Errorf("error scanning row: %v", err)
 		}
+		parsedTime, err := time.Parse(model.Layout, timestamp)
+
+		if err != nil {
+			return nil, fmt.Errorf("error parsing time: %v", err)
+		}
+
+		row.Timestamp = parsedTime
+
 		output[rowCount] = row
 		rowCount++
 	}

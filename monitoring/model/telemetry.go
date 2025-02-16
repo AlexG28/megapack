@@ -1,9 +1,13 @@
 package model
 
+import "time"
+
 type TelemetryData struct {
-	UnitID             string  `json:"unit_id"`
-	Timestamp          string  `json:"timestamp"`
-	TemperatureCelcius float32 `json:"temperature_celsius"`
-	VoltageVolts       float32 `json:"voltage_volts"`
-	ChargeLevelPercent float32 `json:"charge_level_percent"`
+	UnitID             string
+	Timestamp          time.Time
+	TemperatureCelcius float32
+	VoltageVolts       float32
+	ChargeLevelPercent float32
 }
+
+var Layout = "2006-01-02 15:04:05.999999-07"

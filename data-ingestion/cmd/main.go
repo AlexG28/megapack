@@ -139,7 +139,7 @@ func processData(conn *pgx.Conn, dataChan <-chan TelemetryData) {
 			log.Printf("The error that occured in processData: %v\n", err)
 		}
 
-		log.Printf("successful data submission: %v\n", data)
+		// log.Printf("successful data submission: %v\n", data)
 
 		if err != nil {
 			log.Printf("%v\n", err)
