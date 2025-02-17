@@ -12,8 +12,9 @@ type TelemetryData struct {
 	UnitID             string  `json:"unit_id"`
 	Timestamp          string  `json:"timestamp"`
 	TemperatureCelcius float32 `json:"temperature_celsius"`
-	VoltageVolts       float32 `json:"voltage_volts"`
 	ChargeLevelPercent float32 `json:"charge_level_percent"`
+	ChargeCycle        int     `json:"charge_cycle"`
+	CumulativePower    int     `json:"cumulative_power"`
 }
 
 func TelemetryHandler(w http.ResponseWriter, r *http.Request) {
@@ -31,8 +32,6 @@ func TelemetryHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	defer r.Body.Close()
-
-	// log.Printf("Received telemetry data: %+v\n", telData)
 
 	err := SendToIngestion(telData)
 

@@ -1,60 +1,65 @@
-import requests
-from faker import Faker
-from faker.providers import internet
-import time
+from enums import State
+import time 
 import datetime
-import random
-import json
-import signal
 
-fake = Faker()
+class Megapack: 
+    def __init__(self):
+        self.state = State.STARTUP
+        self.id = "new-simulated-megapack-1"
+        self.running_time = 0
+        self.charge = 1000
+        self.power = 0 
+        self.internal_temp = 22
+        self.ambient_temp = 22
+        self.cumulative_output = 0
+        self.cycle = 1
 
-should_exit = False
-
-def handle_exit_signal(signum, frame):
-    global should_exit 
-    print("Received exit signal. Shutting down...")
-    should_exit = True
-
-signal.signal(signal.SIGTERM, handle_exit_signal)
-signal.signal(signal.SIGINT, handle_exit_signal)
-
-def simulate_megapack_data(unit_id):
-    timestamp = datetime.datetime.now().isoformat()
-    
-    temperature_celsius = 20 + random.uniform(-5, 5) # Example: 20 +/- 5 degrees C
-    voltage_volts = 475 + random.uniform(-10, 10)   # Example: 475 +/- 10 Volts
-    charge_level_percent = 30 + random.uniform(0, 70) # Example: Charge level between 30% and 100%
-
-    data = {
-        "unit_id": unit_id,
-        "timestamp": timestamp,
-        "temperature_celsius": temperature_celsius,
-        "voltage_volts": voltage_volts,
-        "charge_level_percent": charge_level_percent
-    }
-    return data
-
-def send_data_to_api_gateway(data, api_url="http://api-gateway:8080/telemetry"): 
-    headers = {
-        "Content-Type": "application/json"
-    }
-    try:
-        response = requests.post(api_url, data=json.dumps(data), headers=headers)
-        response.raise_for_status() # Raise HTTPError for bad responses (4xx or 5xx)
-        print(f"Data sent successfully for unit {data['unit_id']}. Status code: {response.status_code}")
-    except requests.exceptions.RequestException as e:
-        print(f"Error sending data for unit {data['unit_id']}: {e}")
-
-
-if __name__ == "__main__":
-    
-    while not should_exit: 
-        n = random.randint(1, 10)
-        id = f"simulated-megapack-{n}"
-        data = simulate_megapack_data(id)
-        send_data_to_api_gateway(data)
+    def loop(self): 
         time.sleep(1)
+        if self.state == State.STARTUP: 
+            self.startup()
+        if self.state == State.CHARGING: 
+            self.charging()
+        if self.state == State.DISCHARGING: 
+            self.discharging()
+        if self.state == State.IDLE: 
+            self.state = State.STARTUP
+        if self.state == State.SHUTDOWN: 
+            self.state = State.STARTUP
+        if self.state == State.FAULT: 
+            return State.MAINTENANCE
+        if self.state == State.MAINTENANCE: 
+            return State.STARTUP
+        
+    def startup(self):
+        if self.charge > 200: 
+            self.state = State.DISCHARGING
+        else: 
+            self.state = State.CHARGING
+    
 
-    print("Simulator ending")
+    def charging(self): 
+        if self.charge > 900: 
+            self.state = State.DISCHARGING
+            self.cycle += 1
+        else:
+            self.internal_temp *= 1.05
+            self.charge += 20
+    
+    
+    def discharging(self): 
+        if self.charge < 100: 
+            self.state = State.CHARGING
+        else:
+            self.charge -= 20
+            self.internal_temp *= 1.05
 
+    def get_data(self): 
+        return {
+            "unit_id": self.id,
+            "timestamp": datetime.datetime.now().isoformat(),
+            "temperature_celsius": self.internal_temp,
+            "charge_level_percent": self.charge,
+            "charge_cycle": self.cycle,
+            "cumulative_power": self.cumulative_output,
+        } #add state here
