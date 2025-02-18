@@ -1,11 +1,11 @@
 from enums import State
-import time 
+# import time 
 import datetime
 
 class Megapack: 
-    def __init__(self):
+    def __init__(self, id):
         self.state = State.STARTUP
-        self.id = "new-simulated-megapack-1"
+        self.id = id
         self.running_time = 0
         self.charge = 1000
         self.power = 0 
@@ -15,7 +15,6 @@ class Megapack:
         self.cycle = 1
 
     def loop(self): 
-        time.sleep(1)
         if self.state == State.STARTUP: 
             self.startup()
         if self.state == State.CHARGING: 

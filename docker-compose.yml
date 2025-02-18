@@ -4,6 +4,8 @@ services:
     build: ./api-gateway
     ports: 
       - "8080:8080"
+    depends_on:
+      - timescaledb
   
   data-ingestion: 
     build: ./data-ingestion
@@ -30,6 +32,8 @@ services:
     build: ./simulator
     depends_on: 
       - api-gateway
+    environment:
+      - INSTANCE_COUNT=5
 
 volumes:
   timescaledb_data:
