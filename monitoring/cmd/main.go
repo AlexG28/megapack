@@ -28,9 +28,7 @@ func main() {
 
 	defer conn.Close()
 
-	for i := range 20 {
-		log.Printf("Iteration: %v\n", i)
-
+	for range 20 {
 		last100Rows, err := getLast100Rows(conn)
 
 		if err != nil {
@@ -38,6 +36,8 @@ func main() {
 		}
 
 		metrics.RequestsPerSecond(last100Rows)
+
+		metrics.AverageCharge(conn)
 
 		time.Sleep(time.Second * 2)
 	}
@@ -135,6 +135,7 @@ func currentRowCount(conn *pgx.Conn) error {
 		return fmt.Errorf("error occurred when counting lines: %v", err)
 	}
 
-	log.Printf("The row count is: %v\n", count)
+	fmt.Printf("Row count: %v\n", count)
+
 	return nil
 }

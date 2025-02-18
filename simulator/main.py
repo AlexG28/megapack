@@ -35,8 +35,4 @@ if __name__ == "__main__":
     while not should_exit: 
         megapack.loop()
         data = megapack.get_data()
-        print(f"data: {data}")
         send_data_to_api_gateway(data)
-
-    print("Simulator ending")
-

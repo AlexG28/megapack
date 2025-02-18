@@ -54,7 +54,7 @@ class Megapack:
             self.charge -= 20
             self.internal_temp *= 1.05
 
-    def get_data(self): 
+    def get_data(self):
         return {
             "unit_id": self.id,
             "timestamp": datetime.datetime.now().isoformat(),
@@ -62,4 +62,4 @@ class Megapack:
             "charge_level_percent": self.charge,
             "charge_cycle": self.cycle,
             "cumulative_power": self.cumulative_output,
-        } #add state here
+        }
