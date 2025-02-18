@@ -10,6 +10,7 @@ import (
 
 type TelemetryData struct {
 	UnitID             string  `json:"unit_id"`
+	State              string  `json:"state"`
 	Timestamp          string  `json:"timestamp"`
 	TemperatureCelcius float32 `json:"temperature_celsius"`
 	ChargeLevelPercent float32 `json:"charge_level_percent"`

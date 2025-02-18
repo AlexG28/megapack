@@ -4,6 +4,7 @@ import "time"
 
 type TelemetryData struct {
 	UnitID             string
+	State              string
 	Timestamp          time.Time
 	TemperatureCelcius float32
 	ChargeLevelPercent float32

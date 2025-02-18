@@ -1,10 +1,10 @@
-from enum import Enum, auto
+from enum import Enum
 
 class State(Enum): 
-    STARTUP = auto()
-    CHARGING = auto()
-    DISCHARGING = auto()
-    SHUTDOWN = auto()
-    IDLE = auto()
-    FAULT = auto()
-    MAINTENANCE = auto()
+    STARTUP = "startup"
+    CHARGING = "charging"
+    DISCHARGING = "discharging"
+    SHUTDOWN = "shutdown"
+    IDLE = "idle"
+    FAULT = "fault"
+    MAINTENANCE = "maintenance"

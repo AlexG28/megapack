@@ -14,6 +14,7 @@ func RequestsPerSecond(arr []model.TelemetryData) {
 	diff := first.Sub(last)
 
 	fmt.Printf("Requests per second: %.3f\n", float64(len)/diff.Seconds())
+	fmt.Printf("first: %v\n", arr[0])
 }
 
 func AverageCharge(conn *pgx.Conn) error {

@@ -1,6 +1,5 @@
 from enums import State
-# import time 
-import datetime
+import datetime, random
 
 class Megapack: 
     def __init__(self, id):
@@ -33,22 +32,44 @@ class Megapack:
     def startup(self):
         if self.charge > 200: 
             self.state = State.DISCHARGING
+        elif random.random() < 0.005:
+            self.state = State.FAULT
         else: 
-            self.state = State.CHARGING
+            self.state = State.IDLE
     
 
     def charging(self): 
         if self.charge > 900: 
-            self.state = State.DISCHARGING
+            self.state = State.IDLE
             self.cycle += 1
+        elif random.random() < 0.005:
+            self.state = State.FAULT
         else:
             self.internal_temp *= 1.05
             self.charge += 20
     
+    def fault(self): 
+        self.internal_temp *= 0.95
+        if random.random() < 0.3: 
+            self.state = State.MAINTENANCE
     
+    def maintenance(self): 
+        self.internal_temp *= 0.95
+        if random.random() < 0.2: 
+            self.state = State.STARTUP
+    
+    def idle(self): 
+        self.internal_temp *= 0.95
+        if self.charge < 200 and random.random() < 0.7:
+            self.state = State.CHARGING
+        elif random.random() < 0.5:
+            self.state = State.DISCHARGING
+
     def discharging(self): 
         if self.charge < 100: 
             self.state = State.CHARGING
+        elif random.random() < 0.005:
+            self.state = State.FAULT
         else:
             self.charge -= 20
             self.internal_temp *= 1.05
@@ -56,6 +77,7 @@ class Megapack:
     def get_data(self):
         return {
             "unit_id": self.id,
+            "state": self.state.value,
             "timestamp": datetime.datetime.now().isoformat(),
             "temperature_celsius": self.internal_temp,
             "charge_level_percent": self.charge,

@@ -82,12 +82,11 @@ func getLast100Rows(conn *pgx.Conn) ([]model.TelemetryData, error) {
 	}
 
 	query := `
-        SELECT unit_id, timestamp, temperature_celsius, charge_level_percent, charge_cycle, cumulative_power
+        SELECT unit_id, timestamp, state, temperature_celsius, charge_level_percent, charge_cycle, cumulative_power
         FROM telemetry_data 
 		ORDER BY timestamp DESC
         LIMIT 100;
     `
-
 	rows, err := conn.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("error executing query: %v", err)
@@ -99,7 +98,7 @@ func getLast100Rows(conn *pgx.Conn) ([]model.TelemetryData, error) {
 
 	for rows.Next() {
 		var row model.TelemetryData
-		err := rows.Scan(&row.UnitID, &timestamp, &row.TemperatureCelcius, &row.ChargeLevelPercent, &row.ChargeCycle, &row.CumulativePower)
+		err := rows.Scan(&row.UnitID, &timestamp, &row.State, &row.TemperatureCelcius, &row.ChargeLevelPercent, &row.ChargeCycle, &row.CumulativePower)
 		if err != nil {
 			return nil, fmt.Errorf("error scanning row: %v", err)
 		}
