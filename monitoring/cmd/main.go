@@ -28,17 +28,11 @@ func main() {
 
 	defer conn.Close()
 
-	for range 20 {
-		last100Rows, err := getLast100Rows(conn)
-
+	for range 50 {
+		err := metrics.PerformMonitoring(conn)
 		if err != nil {
-			log.Fatalf("monitoring failed: %v\n", err)
+			log.Fatalf("Error: %v", err)
 		}
-
-		metrics.RequestsPerSecond(last100Rows)
-
-		metrics.AverageCharge(conn)
-
 		time.Sleep(time.Second * 2)
 	}
 
