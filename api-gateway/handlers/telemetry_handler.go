@@ -12,10 +12,12 @@ type TelemetryData struct {
 	UnitID             string  `json:"unit_id"`
 	State              string  `json:"state"`
 	Timestamp          string  `json:"timestamp"`
-	TemperatureCelcius float32 `json:"temperature_celsius"`
-	ChargeLevelPercent float32 `json:"charge_level_percent"`
-	ChargeCycle        int     `json:"charge_cycle"`
-	CumulativePower    int     `json:"cumulative_power"`
+	TemperatureCelcius float32 `json:"temperature"`
+	ChargeLevelPercent int     `json:"charge"`
+	ChargeCycle        int     `json:"cycle"`
+	Output             int     `json:"output"`
+	Runtime            int     `json:"runtime"`
+	Power              int     `json:"power"`
 }
 
 func TelemetryHandler(w http.ResponseWriter, r *http.Request) {
@@ -69,7 +71,7 @@ func SendToIngestion(telData TelemetryData) error {
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("Incorrect Status: %v", resp.StatusCode)
+		return fmt.Errorf("incorrect Status: %v", resp.StatusCode)
 	}
 
 	defer resp.Body.Close()

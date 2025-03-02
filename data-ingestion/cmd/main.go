@@ -14,10 +14,12 @@ type TelemetryData struct {
 	UnitID             string  `json:"unit_id"`
 	State              string  `json:"state"`
 	Timestamp          string  `json:"timestamp"`
-	TemperatureCelcius float32 `json:"temperature_celsius"`
-	ChargeLevelPercent float32 `json:"charge_level_percent"`
-	ChargeCycle        int     `json:"charge_cycle"`
-	CumulativePower    int     `json:"cumulative_power"`
+	TemperatureCelcius float32 `json:"temperature"`
+	ChargeLevelPercent int     `json:"charge"`
+	ChargeCycle        int     `json:"cycle"`
+	Output             int     `json:"output"`
+	Runtime            int     `json:"runtime"`
+	Power              int     `json:"power"`
 }
 
 func main() {
@@ -116,11 +118,12 @@ func createTable(conn *pgx.Conn) error {
 		unit_id VARCHAR(255),
 		state VARCHAR(255),
 		timestamp VARCHAR(255),
-		temperature_celsius FLOAT,
-		charge_level_percent FLOAT,
-		charge_cycle INT,
-		cumulative_power INT
-	);`
+		temperature FLOAT,
+		charge INT,
+		cycle INT,
+		output INT,
+		runtime INT,
+		power INT);`
 
 	_, err = conn.Exec(sql)
 
@@ -135,9 +138,22 @@ func createTable(conn *pgx.Conn) error {
 
 func processData(conn *pgx.Conn, dataChan <-chan TelemetryData) {
 	for data := range dataChan {
-		query := `INSERT INTO telemetry_data (unit_id, state, timestamp, temperature_celsius, charge_level_percent, charge_cycle, cumulative_power) VALUES ($1, $2, $3::timestamptz, $4, $5, $6, $7)`
+		query := `INSERT INTO telemetry_data 
+		(unit_id, state, timestamp, temperature, charge, cycle, output, runtime, power) 
+		VALUES ($1, $2, $3::timestamptz, $4, $5, $6, $7, $8, $9)`
 
-		_, err := conn.Exec(query, data.UnitID, data.State, data.Timestamp, data.TemperatureCelcius, data.ChargeLevelPercent, data.ChargeCycle, data.CumulativePower)
+		_, err := conn.Exec(
+			query,
+			data.UnitID,
+			data.State,
+			data.Timestamp,
+			data.TemperatureCelcius,
+			data.ChargeLevelPercent,
+			data.ChargeCycle,
+			data.Output,
+			data.Runtime,
+			data.Power,
+		)
 
 		if err != nil {
 			log.Printf("The error that occured in processData: %v\n", err)
