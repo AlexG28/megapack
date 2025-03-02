@@ -1,15 +1,12 @@
 package main
 
 import (
-	"fmt"
 	"gateway/handlers"
 	"log"
 	"net/http"
 )
 
 func main() {
-	fmt.Println("hello there general kenobi")
-
 	http.HandleFunc("/telemetry", handlers.TelemetryHandler)
 	http.HandleFunc("/health", handlers.HealthCheck)
 

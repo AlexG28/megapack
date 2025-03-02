@@ -91,7 +91,7 @@ func healthCheck(conn *pgx.Conn) error {
 
 	err := conn.Ping(ctx)
 	if err != nil {
-		return fmt.Errorf("Ingestion DB healthcheck failed: %v\n", err)
+		return fmt.Errorf("ingestion DB healthcheck failed: %v\n", err)
 	}
 	log.Printf("Healthcheck Successfull!")
 	return nil
@@ -117,7 +117,7 @@ func createTable(conn *pgx.Conn) error {
 	sql := `CREATE TABLE telemetry_data (
 		unit_id VARCHAR(255),
 		state VARCHAR(255),
-		timestamp VARCHAR(255),
+		timestamp TIMESTAMPTZ,
 		temperature FLOAT,
 		charge INT,
 		cycle INT,

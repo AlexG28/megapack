@@ -8,34 +8,21 @@ import (
 	"github.com/jackc/pgx"
 )
 
-func queryCount(conn *pgx.Conn, query string, args ...interface{}) (int, error) {
+func getCountByState(conn *pgx.Conn, states ...string) (int, error) {
+	query := `SELECT COUNT(*) AS discharging_units
+	FROM (
+		SELECT DISTINCT ON (unit_id) unit_id, state
+		FROM telemetry_data
+		ORDER BY unit_id, timestamp::TIMESTAMP DESC
+	) AS latest_entries
+	WHERE state = ANY($1);`
+
 	var count int
-	err := conn.QueryRow(query, args...).Scan(&count)
+	err := conn.QueryRow(query, states).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("queryCount failed: %w", err)
 	}
 	return count, nil
-}
-
-func querySingleFloat(conn *pgx.Conn, query string, args ...interface{}) (float32, error) {
-	var result float32
-	err := conn.QueryRow(query, args...).Scan(&result)
-	if err != nil {
-		return 0, fmt.Errorf("querySingleFloat failed: %w", err)
-	}
-	return result, nil
-}
-
-func getCountByState(conn *pgx.Conn, state string) (int, error) {
-	return queryCount(conn,
-		`SELECT COUNT(*) FROM telemetry_data WHERE state = $1`,
-		state,
-	)
-}
-
-func getCountByStates(conn *pgx.Conn, states ...string) (int, error) {
-	query := `SELECT COUNT(*) FROM telemetry_data WHERE state = ANY($1)`
-	return queryCount(conn, query, states)
 }
 
 func PerformMonitoring(conn *pgx.Conn) error {
@@ -53,7 +40,7 @@ func PerformMonitoring(conn *pgx.Conn) error {
 		{&status.Discharging, func() (int, error) { return getCountByState(conn, "discharging") }},
 		{&status.Charging, func() (int, error) { return getCountByState(conn, "charging") }},
 		{&status.Idle, func() (int, error) { return getCountByState(conn, "idle") }},
-		{&status.Fault, func() (int, error) { return getCountByStates(conn, "fault", "maintenance") }},
+		{&status.Fault, func() (int, error) { return getCountByState(conn, "fault", "maintenance") }},
 	}
 
 	for _, sc := range stateCounts {
@@ -91,17 +78,4 @@ func RequestsPerSecond(arr []model.TelemetryData) {
 	}
 
 	fmt.Printf("Requests per second: %.3f\n", float64(len(arr))/duration)
-}
-
-func averageCharge(conn *pgx.Conn) (float32, error) {
-	const query = `
-		SELECT AVG(temperature_celsius) 
-		FROM (
-			SELECT temperature_celsius
-			FROM telemetry_data
-			ORDER BY timestamp DESC
-			LIMIT 100
-		) AS subquery
-	`
-	return querySingleFloat(conn, query)
 }
