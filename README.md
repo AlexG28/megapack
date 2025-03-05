@@ -2,7 +2,11 @@
 
 - the goal of this project is to write a somewhat realistic backend system for the Tesla megapack
 
+## Diagram
 
-# running system: 
+![System Diagram](imgs/system_design.jpg)
 
-`docker-compose up --build`
+
+# Startup Instructions: 
+- Run `docker-compose up --build`
+
