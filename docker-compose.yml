@@ -6,11 +6,23 @@ services:
       - "8080:8080"
     depends_on:
       - timescaledb
+      - rabbitmq
+  
+  rabbitmq: 
+    image: rabbitmq:3-management
+    ports: 
+      - "5672:5672"  # AMQP port
+      - "15672:15672"  # Management UI port
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
   
   data-ingestion: 
     build: ./data-ingestion
     depends_on:
-      - api-gateway
+      - rabbitmq
       - timescaledb
 
   timescaledb: 
@@ -21,17 +33,25 @@ services:
       - POSTGRES_PASSWORD=teslagivemejob
     volumes: 
       - timescaledb_data:/var/lib/postgresql/data 
+    depends_on:
+      - rabbitmq
 
   monitoring: 
     build: ./monitoring
     depends_on:
+      - api-gateway
       - data-ingestion
       - timescaledb
+      - rabbitmq
 
   simulator: 
     build: ./simulator
     depends_on: 
       - api-gateway
+      - data-ingestion
+      - timescaledb
+      - rabbitmq
+      - monitoring
     environment:
       - INSTANCE_COUNT=5
 

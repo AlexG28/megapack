@@ -1,11 +1,12 @@
 package handlers
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+
+	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 type TelemetryData struct {
@@ -20,61 +21,63 @@ type TelemetryData struct {
 	Power              int     `json:"power"`
 }
 
-func TelemetryHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
+func TelemetryHandler(ch *amqp.Channel) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var telData TelemetryData
+
+		decoder := json.NewDecoder(r.Body)
+		if err := decoder.Decode(&telData); err != nil {
+			http.Error(w, "Error decoding Json", http.StatusBadRequest)
+			return
+		}
+
+		defer r.Body.Close()
+
+		err := sendToQueue(ch, "main", telData)
+
+		if err != nil {
+			log.Printf("Unable to send to ingestion: %v\n", err)
+		}
+
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintln(w, "telemetry data received and processed")
 	}
-
-	var telData TelemetryData
-
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&telData); err != nil {
-		http.Error(w, "Error decoding Json", http.StatusBadRequest)
-		return
-	}
-
-	defer r.Body.Close()
-
-	err := SendToIngestion(telData)
-
-	if err != nil {
-		log.Printf("Unable to send to ingestion: %v\n", err)
-	}
-
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprintln(w, "telemetry data received and processed")
 }
 
-func SendToIngestion(telData TelemetryData) error {
-	url := "http://data-ingestion:8080/ingest"
-
+func sendToQueue(ch *amqp.Channel, queueName string, telData TelemetryData) error {
 	jsonData, err := json.Marshal(telData)
 
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to convert to json: %v", err)
 	}
 
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonData))
+	_, err = ch.QueueDeclare(
+		queueName,
+		false,
+		false,
+		false,
+		false,
+		nil,
+	)
 
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to declare queue: %v", err)
 	}
 
-	req.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-
-	if err != nil {
-		return err
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("incorrect Status: %v", resp.StatusCode)
-	}
-
-	defer resp.Body.Close()
-
-	return nil
+	err = ch.Publish(
+		"",
+		queueName,
+		false,
+		false,
+		amqp.Publishing{
+			ContentType: "application/json",
+			Body:        jsonData,
+		},
+	)
+	return err
 }

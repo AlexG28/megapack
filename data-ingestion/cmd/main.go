@@ -5,9 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"net/http"
+	"time"
 
 	"github.com/jackc/pgx"
+	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 type TelemetryData struct {
@@ -23,6 +24,71 @@ type TelemetryData struct {
 }
 
 func main() {
+	time.Sleep(time.Second * 25)
+	conn, err := openDBConnection()
+
+	if err != nil {
+		log.Fatalf("Unable to connect to database: %v\n", err)
+	}
+
+	defer conn.Close()
+
+	if err = healthCheck(conn); err != nil {
+		log.Fatalf("Health check failed: %v\n", err)
+	}
+
+	err = createTable(conn)
+
+	if err != nil {
+		log.Fatalf("Unable to create table: %v\n", err)
+	}
+
+	ch, q, err := openRabbitMQConnection("main")
+
+	if err != nil {
+		log.Fatalf("Rabbitmq error: %v", err)
+	}
+
+	fmt.Println("Successfully established all the major connections and ready to injest data into DB")
+
+	defer ch.Close()
+
+	var forever chan struct{}
+	dataChan := make(chan TelemetryData, 100)
+
+	msgs, err := ch.Consume(
+		q.Name,
+		"",
+		true,
+		false,
+		false,
+		false,
+		nil,
+	)
+
+	if err != nil {
+		log.Fatalf("consume error: %v\n", err)
+	}
+
+	var telData TelemetryData
+
+	go func() {
+		for d := range msgs {
+
+			if err := json.Unmarshal(d.Body, &telData); err != nil {
+				log.Fatalf("error in decoding json")
+				continue
+			}
+			dataChan <- telData
+		}
+	}()
+
+	go addToDB(conn, dataChan)
+
+	<-forever
+}
+
+func openDBConnection() (*pgx.Conn, error) {
 	connStruct := pgx.ConnConfig{
 		User:     "postgres",
 		Password: "teslagivemejob",
@@ -34,56 +100,44 @@ func main() {
 	conn, err := pgx.Connect(connStruct)
 
 	if err != nil {
-		log.Fatalf("Unable to connect to database: %v\n", err)
+		return nil, fmt.Errorf("failed to connect to timescaleDB: %v", err)
 	}
 
-	defer conn.Close()
+	return conn, nil
+}
 
-	if err = healthCheck(conn); err != nil {
-		log.Printf("Health check failed: %v\n", err)
-	}
-
-	err = createTable(conn)
+func openRabbitMQConnection(queueName string) (*amqp.Channel, *amqp.Queue, error) {
+	conn, err := amqp.Dial("amqp://guest:guest@rabbitmq:5672/")
 
 	if err != nil {
-		log.Printf("Unable to create database: %v\n", err)
+		return nil, nil, fmt.Errorf("failed to dial rabbitmq: %v", err)
 	}
 
-	fmt.Print("Ready to accept data")
-
-	dataChan := make(chan TelemetryData, 100)
-
-	go processData(conn, dataChan)
-
-	http.HandleFunc("/ingest", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-
-		var telData TelemetryData
-
-		decoder := json.NewDecoder(r.Body)
-		if err := decoder.Decode(&telData); err != nil {
-			http.Error(w, "Error decoding Json", http.StatusBadRequest)
-			return
-		}
-
-		defer r.Body.Close()
-
-		dataChan <- telData
-
-		w.WriteHeader(http.StatusOK)
-	})
-	port := "8080"
-	log.Printf("API gateway starting up on port %v\n", port)
-
-	err = http.ListenAndServe(":"+port, nil)
+	ch, err := conn.Channel()
 	if err != nil {
-		log.Fatalf("server failed to start: %v", err)
+		return nil, nil, fmt.Errorf("failed to create channel: %v", err)
 	}
-	log.Println("Listening and serving!")
+	// queueName = "main"
+	q, err := ch.QueueDeclare(
+		queueName,
+		false,
+		false,
+		false,
+		false,
+		nil,
+	)
 
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to declare queue: %v", err)
+	}
+
+	err = ch.Qos(
+		1, 0, false,
+	)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to set QoS: %v", err)
+	}
+	return ch, &q, nil
 }
 
 func healthCheck(conn *pgx.Conn) error {
@@ -91,9 +145,9 @@ func healthCheck(conn *pgx.Conn) error {
 
 	err := conn.Ping(ctx)
 	if err != nil {
-		return fmt.Errorf("ingestion DB healthcheck failed: %v\n", err)
+		return fmt.Errorf("ingestion DB healthcheck failed: %v", err)
 	}
-	log.Printf("Healthcheck Successfull!")
+	fmt.Println("Healthcheck Successfull!")
 	return nil
 }
 
@@ -110,7 +164,7 @@ func createTable(conn *pgx.Conn) error {
 	}
 
 	if exists {
-		log.Printf("The table already exists!")
+		log.Println("The table already exists!")
 		return nil
 	}
 
@@ -131,12 +185,12 @@ func createTable(conn *pgx.Conn) error {
 		return fmt.Errorf("error creating table: %w", err)
 	}
 
-	log.Printf("Created table")
+	fmt.Println("Created table")
 
 	return nil
 }
 
-func processData(conn *pgx.Conn, dataChan <-chan TelemetryData) {
+func addToDB(conn *pgx.Conn, dataChan <-chan TelemetryData) {
 	for data := range dataChan {
 		query := `INSERT INTO telemetry_data 
 		(unit_id, state, timestamp, temperature, charge, cycle, output, runtime, power) 
