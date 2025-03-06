@@ -29,7 +29,7 @@ services:
     ports: 
       - "5432:5432" 
     environment:
-      - POSTGRES_PASSWORD=teslagivemejob
+      - POSTGRES_PASSWORD=dbpassword
     volumes: 
       - timescaledb_data:/var/lib/postgresql/data 
     depends_on:

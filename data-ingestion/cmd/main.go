@@ -91,7 +91,7 @@ func main() {
 func openDBConnection() (*pgx.Conn, error) {
 	connStruct := pgx.ConnConfig{
 		User:     "postgres",
-		Password: "teslagivemejob",
+		Password: "dbpassword",
 		Host:     "timescaledb",
 		Port:     5432,
 		Database: "postgres",
