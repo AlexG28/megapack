@@ -2,9 +2,9 @@ package metrics
 
 import (
 	"fmt"
-	"monitoring/model"
 	"time"
 
+	"github.com/AlexG28/megapack/monitoring/model"
 	"github.com/jackc/pgx"
 )
 

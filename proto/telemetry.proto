@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package telemetry;
+
+option go_package = "telemetry/telemetry";
+
+message TelemetryData {
+  string unit_id = 1;
+  string state = 2;
+  string timestamp = 3;
+  float temperature = 4;
+  int32 charge = 5;
+  int32 cycle = 6;
+  int32 output = 7;
+  int32 runtime = 8;
+  int32 power = 9;
+}
+
+service TelemetryService {
+  rpc SendTelemetry (TelemetryData) returns (TelemetryResponse) {}
+}
+
+message TelemetryResponse {
+  bool success = 1;
+  string message = 2;
+}

@@ -2,10 +2,11 @@ package main
 
 import (
 	"fmt"
-	"gateway/handlers"
 	"log"
 	"net/http"
 	"time"
+
+	"github.com/AlexG28/megapack/gateway/handlers"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
