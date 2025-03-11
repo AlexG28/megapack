@@ -6,8 +6,8 @@ COPY . .
 
 RUN go mod download
 
-RUN go build -o ingestion ./ingestion/cmd/main.go
+RUN go build -o ingestionbin ./ingestion/cmd/main.go
 
 EXPOSE 8080
-CMD ["./ingestion"]
+CMD ["./ingestionbin"]
 

@@ -6,6 +6,6 @@ COPY . .
 
 RUN go mod download
 
-RUN go build -o monitoring ./monitoring/cmd/main.go
+RUN go build -o monitoringbin ./monitoring/cmd/main.go
 
-CMD [ "./monitoring" ] 
+CMD [ "./monitoringbin" ] 
