@@ -1,7 +1,9 @@
 version: "3.8"
 services: 
-  api-gateway: 
-    build: ./api-gateway
+  gateway: 
+    build: 
+      context: .
+      dockerfile: gateway/Dockerfile
     ports: 
       - "8080:8080"
     depends_on:
@@ -18,8 +20,10 @@ services:
       timeout: 5s
       retries: 5
   
-  data-ingestion: 
-    build: ./data-ingestion
+  ingestion: 
+    build: 
+      context: .
+      dockerfile: ingestion/Dockerfile
     depends_on:
       - rabbitmq
       - timescaledb
@@ -36,18 +40,20 @@ services:
       - rabbitmq
 
   monitoring: 
-    build: ./monitoring
+    build: 
+      context: .
+      dockerfile: monitoring/Dockerfile
     depends_on:
-      - api-gateway
-      - data-ingestion
+      - gateway
+      - ingestion
       - timescaledb
       - rabbitmq
 
   simulator: 
     build: ./simulator
     depends_on: 
-      - api-gateway
-      - data-ingestion
+      - gateway
+      - ingestion
       - timescaledb
       - rabbitmq
       - monitoring

@@ -6,9 +6,8 @@ COPY . .
 
 RUN go mod download
 
-RUN go build -o gateway ./gateway/cmd/main.go
+RUN go build -o ingestion ./ingestion/cmd/main.go
 
 EXPOSE 8080
-CMD ["./gateway"]
-
+CMD ["./ingestion"]
 
