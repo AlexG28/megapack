@@ -4,9 +4,19 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/AlexG28/megapack/monitoring/model"
 	"github.com/jackc/pgx"
 )
+
+func getTotalCount(conn *pgx.Conn) (int, error) {
+	query := `SELECT COUNT(*) FROM telemetry_data`
+
+	var count int
+	err := conn.QueryRow(query).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("rowcount failed: %w", err)
+	}
+	return count, nil
+}
 
 func getCountByState(conn *pgx.Conn, states ...string) (int, error) {
 	query := `SELECT COUNT(*) AS discharging_units
@@ -51,31 +61,22 @@ func PerformMonitoring(conn *pgx.Conn) error {
 		*sc.target = count
 	}
 
+	rowCount, err := getTotalCount(conn)
+
+	if err != nil {
+		return fmt.Errorf("monitoring error: %w", err)
+	}
+
 	const (
 		timeFormat   = "2006-01-02 15:04:05"
 		separator    = "================================================"
-		statusFormat = "%-19s  Charging: %-4d  Discharging: %-4d  Idle: %-4d  Faulty: %-4d\n"
+		statusFormat = "%-19s  TotalRowCount: %-4d  Charging: %-4d  Discharging: %-4d  Idle: %-4d  Faulty: %-4d\n"
 	)
 
 	timestamp := time.Now().UTC().Format(timeFormat)
 	fmt.Println(separator)
 	fmt.Printf(statusFormat, timestamp,
-		status.Charging, status.Discharging, status.Idle, status.Fault)
+		rowCount, status.Charging, status.Discharging, status.Idle, status.Fault)
 
 	return nil
-}
-
-func RequestsPerSecond(arr []model.TelemetryData) {
-	if len(arr) < 2 {
-		fmt.Println("Insufficient data points for RPS calculation")
-		return
-	}
-
-	duration := arr[0].Timestamp.Sub(arr[len(arr)-1].Timestamp).Seconds()
-	if duration == 0 {
-		fmt.Println("Zero duration between first and last timestamp")
-		return
-	}
-
-	fmt.Printf("Requests per second: %.3f\n", float64(len(arr))/duration)
 }
