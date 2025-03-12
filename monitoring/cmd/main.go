@@ -4,9 +4,10 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"monitoring/metrics"
-	"monitoring/model"
 	"time"
+
+	"github.com/AlexG28/megapack/monitoring/metrics"
+	"github.com/AlexG28/megapack/monitoring/model"
 
 	"github.com/jackc/pgx"
 )

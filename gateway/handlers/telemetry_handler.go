@@ -6,10 +6,13 @@ import (
 	"log"
 	"net/http"
 
+	pb "github.com/AlexG28/megapack/proto/telemetry"
+	"google.golang.org/protobuf/proto"
+
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
-type TelemetryData struct {
+type TelemetryDataStruct struct {
 	UnitID             string  `json:"unit_id"`
 	State              string  `json:"state"`
 	Timestamp          string  `json:"timestamp"`
@@ -28,7 +31,7 @@ func TelemetryHandler(ch *amqp.Channel) http.HandlerFunc {
 			return
 		}
 
-		var telData TelemetryData
+		var telData TelemetryDataStruct
 
 		decoder := json.NewDecoder(r.Body)
 		if err := decoder.Decode(&telData); err != nil {
@@ -49,11 +52,12 @@ func TelemetryHandler(ch *amqp.Channel) http.HandlerFunc {
 	}
 }
 
-func sendToQueue(ch *amqp.Channel, queueName string, telData TelemetryData) error {
-	jsonData, err := json.Marshal(telData)
+func sendToQueue(ch *amqp.Channel, queueName string, telData TelemetryDataStruct) error {
+	telDataBytes := convertToProto(telData)
+	protoData, err := proto.Marshal(telDataBytes)
 
 	if err != nil {
-		return fmt.Errorf("failed to convert to json: %v", err)
+		return fmt.Errorf("failed to convert to proto: %v", err)
 	}
 
 	_, err = ch.QueueDeclare(
@@ -75,9 +79,23 @@ func sendToQueue(ch *amqp.Channel, queueName string, telData TelemetryData) erro
 		false,
 		false,
 		amqp.Publishing{
-			ContentType: "application/json",
-			Body:        jsonData,
+			ContentType: "application/protobuf",
+			Body:        protoData,
 		},
 	)
 	return err
+}
+
+func convertToProto(data TelemetryDataStruct) *pb.TelemetryData {
+	return &pb.TelemetryData{
+		UnitId:      data.UnitID,
+		State:       data.State,
+		Timestamp:   data.Timestamp,
+		Temperature: data.TemperatureCelcius,
+		Charge:      int32(data.ChargeLevelPercent),
+		Cycle:       int32(data.ChargeCycle),
+		Output:      int32(data.Output),
+		Runtime:     int32(data.Runtime),
+		Power:       int32(data.Power),
+	}
 }

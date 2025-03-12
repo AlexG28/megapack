@@ -2,13 +2,15 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"time"
 
 	"github.com/jackc/pgx"
 	amqp "github.com/rabbitmq/amqp091-go"
+	"google.golang.org/protobuf/proto"
+
+	pb "github.com/AlexG28/megapack/proto/telemetry"
 )
 
 type TelemetryData struct {
@@ -74,11 +76,13 @@ func main() {
 
 	go func() {
 		for d := range msgs {
-
-			if err := json.Unmarshal(d.Body, &telData); err != nil {
-				log.Fatalf("error in decoding json")
+			m := pb.TelemetryData{}
+			if err := proto.Unmarshal(d.Body, &m); err != nil {
+				log.Fatalf("error in decoding bytes into m")
 				continue
 			}
+
+			telData = convertProtoToTelData(&m)
 			dataChan <- telData
 		}
 	}()
@@ -216,5 +220,19 @@ func addToDB(conn *pgx.Conn, dataChan <-chan TelemetryData) {
 		if err != nil {
 			log.Printf("%v\n", err)
 		}
+	}
+}
+
+func convertProtoToTelData(proto *pb.TelemetryData) TelemetryData {
+	return TelemetryData{
+		UnitID:             proto.GetUnitId(),
+		State:              proto.GetState(),
+		Timestamp:          proto.GetTimestamp(),
+		TemperatureCelcius: proto.GetTemperature(),
+		ChargeLevelPercent: int(proto.GetCharge()),
+		ChargeCycle:        int(proto.GetCycle()),
+		Output:             int(proto.GetOutput()),
+		Runtime:            int(proto.GetRuntime()),
+		Power:              int(proto.GetPower()),
 	}
 }

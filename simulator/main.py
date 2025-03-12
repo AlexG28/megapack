@@ -4,9 +4,10 @@ import signal
 from megapack import Megapack
 import time
 import os
+import sys
 
 should_exit = False
-instance_count = os.environ.get('INSTANCE_COUNT')
+instance_count = os.environ.get('INSTANCE_COUNT', default=5)
 
 def handle_exit_signal(signum, frame):
     global should_exit 
@@ -16,19 +17,22 @@ def handle_exit_signal(signum, frame):
 signal.signal(signal.SIGTERM, handle_exit_signal)
 signal.signal(signal.SIGINT, handle_exit_signal)
 
-def send_data_to_api_gateway(data, api_url="http://api-gateway:8080/telemetry"): 
+def send_data_to_api_gateway(data, api_url="http://gateway:8080/telemetry"): 
     headers = {
         "Content-Type": "application/json"
     }
     try:
         response = requests.post(api_url, data=json.dumps(data), headers=headers)
-        response.raise_for_status() # Raise HTTPError for bad responses (4xx or 5xx)
         # print(f"Data sent successfully for unit {data['unit_id']}. Status code: {response.status_code}")
     except requests.exceptions.RequestException as e:
         print(f"Error sending data for unit {data['unit_id']}: {e}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
+    print("Putting simulator to sleep")
+    time.sleep(26)
+    print("Waking Simulator up")
     megapack_array = []
     for i in range(int(instance_count)):
         new = Megapack(f"new-simulated-megapack-{i}")
