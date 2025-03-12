@@ -50,7 +50,9 @@ services:
       - rabbitmq
 
   simulator: 
-    build: ./simulator
+    build: 
+      context: .
+      dockerfile: simulator/Dockerfile
     depends_on: 
       - gateway
       - ingestion

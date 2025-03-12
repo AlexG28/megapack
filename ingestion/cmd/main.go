@@ -83,7 +83,6 @@ func main() {
 			}
 
 			telData = convertProtoToTelData(&m)
-
 			dataChan <- telData
 		}
 	}()

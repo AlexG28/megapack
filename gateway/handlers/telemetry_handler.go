@@ -53,9 +53,7 @@ func TelemetryHandler(ch *amqp.Channel) http.HandlerFunc {
 }
 
 func sendToQueue(ch *amqp.Channel, queueName string, telData TelemetryDataStruct) error {
-
 	telDataBytes := convertToProto(telData)
-
 	protoData, err := proto.Marshal(telDataBytes)
 
 	if err != nil {
