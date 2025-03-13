@@ -1,14 +1,16 @@
-package main
+package storage
 
 import (
 	"context"
 	"fmt"
 	"log"
 
+	"github.com/AlexG28/megapack/ingestion/models"
+
 	"github.com/jackc/pgx"
 )
 
-func addToDB(conn *pgx.Conn, dataChan <-chan TelemetryData) {
+func AddToDB(conn *pgx.Conn, dataChan <-chan models.TelemetryData) {
 	for data := range dataChan {
 		query := `INSERT INTO telemetry_data 
 		(unit_id, state, timestamp, temperature, charge, cycle, output, runtime, power) 
@@ -37,7 +39,7 @@ func addToDB(conn *pgx.Conn, dataChan <-chan TelemetryData) {
 	}
 }
 
-func healthCheck(conn *pgx.Conn) error {
+func HealthCheck(conn *pgx.Conn) error {
 	ctx := context.Background()
 
 	err := conn.Ping(ctx)
@@ -48,7 +50,7 @@ func healthCheck(conn *pgx.Conn) error {
 	return nil
 }
 
-func openDBConnection() (*pgx.Conn, error) {
+func OpenDBConnection() (*pgx.Conn, error) {
 	connStruct := pgx.ConnConfig{
 		User:     "postgres",
 		Password: "dbpassword",

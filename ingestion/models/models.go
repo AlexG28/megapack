@@ -1,4 +1,4 @@
-package main
+package models
 
 type TelemetryData struct {
 	UnitID             string  `json:"unit_id"`

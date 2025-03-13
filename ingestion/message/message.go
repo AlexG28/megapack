@@ -1,4 +1,4 @@
-package main
+package message
 
 import (
 	"fmt"
@@ -27,7 +27,7 @@ func connectToRabbitMq() (*amqp.Connection, error) {
 	return nil, fmt.Errorf("failed to dial rabbitmq after %d attempts: %v", numberOfRetries, err)
 }
 
-func openRabbitMQConnection(queueName string) (*amqp.Channel, *amqp.Queue, error) {
+func OpenRabbitMQConnection(queueName string) (*amqp.Channel, *amqp.Queue, error) {
 
 	conn, err := connectToRabbitMq()
 

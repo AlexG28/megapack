@@ -7,12 +7,15 @@ import (
 	"github.com/jackc/pgx"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/AlexG28/megapack/ingestion/message"
+	"github.com/AlexG28/megapack/ingestion/models"
+	"github.com/AlexG28/megapack/ingestion/storage"
+
 	pb "github.com/AlexG28/megapack/proto/telemetry"
 )
 
 func main() {
-	// time.Sleep(time.Second * 25)
-	conn, err := openDBConnection()
+	conn, err := storage.OpenDBConnection()
 
 	if err != nil {
 		log.Fatalf("Unable to connect to database: %v\n", err)
@@ -20,7 +23,7 @@ func main() {
 
 	defer conn.Close()
 
-	if err = healthCheck(conn); err != nil {
+	if err = storage.HealthCheck(conn); err != nil {
 		log.Fatalf("Health check failed: %v\n", err)
 	}
 
@@ -30,7 +33,7 @@ func main() {
 		log.Fatalf("Unable to create table: %v\n", err)
 	}
 
-	ch, q, err := openRabbitMQConnection("main")
+	ch, q, err := message.OpenRabbitMQConnection("main")
 
 	if err != nil {
 		log.Fatalf("Rabbitmq error: %v", err)
@@ -41,7 +44,7 @@ func main() {
 	defer ch.Close()
 
 	var forever chan struct{}
-	dataChan := make(chan TelemetryData, 100)
+	dataChan := make(chan models.TelemetryData, 100)
 
 	msgs, err := ch.Consume(
 		q.Name,
@@ -57,7 +60,7 @@ func main() {
 		log.Fatalf("consume error: %v\n", err)
 	}
 
-	var telData TelemetryData
+	var telData models.TelemetryData
 
 	go func() {
 		for d := range msgs {
@@ -72,7 +75,7 @@ func main() {
 		}
 	}()
 
-	go addToDB(conn, dataChan)
+	go storage.AddToDB(conn, dataChan)
 
 	<-forever
 }
@@ -116,8 +119,8 @@ func createTable(conn *pgx.Conn) error {
 	return nil
 }
 
-func convertProtoToTelData(proto *pb.TelemetryData) TelemetryData {
-	return TelemetryData{
+func convertProtoToTelData(proto *pb.TelemetryData) models.TelemetryData {
+	return models.TelemetryData{
 		UnitID:             proto.GetUnitId(),
 		State:              proto.GetState(),
 		Timestamp:          proto.GetTimestamp(),
