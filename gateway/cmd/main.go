@@ -7,12 +7,10 @@ import (
 	"time"
 
 	"github.com/AlexG28/megapack/gateway/handlers"
-
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 func main() { // open connection here
-	time.Sleep(time.Second * 25)
 	conn, ch, err := setupRabbitMQ("amqp://guest:guest@rabbitmq:5672/")
 
 	if err != nil {
@@ -38,7 +36,7 @@ func main() { // open connection here
 }
 
 func setupRabbitMQ(url string) (*amqp.Connection, *amqp.Channel, error) {
-	conn, err := amqp.Dial(url)
+	conn, err := connectToRabbitMq(url)
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("failure when dialing rabbitmq: %v", err)
@@ -50,4 +48,23 @@ func setupRabbitMQ(url string) (*amqp.Connection, *amqp.Channel, error) {
 	}
 	fmt.Println("successfully setup rabbitmq")
 	return conn, ch, nil
+}
+
+func connectToRabbitMq(url string) (*amqp.Connection, error) {
+	numberOfRetries := 30
+	var err error
+
+	for range numberOfRetries {
+		conn, err := amqp.Dial(url)
+
+		if err == nil {
+			return conn, nil
+		}
+
+		log.Println("failed to connect to RabbitMQ, trying again")
+		time.Sleep(1 * time.Second)
+
+	}
+
+	return nil, fmt.Errorf("failed to dial rabbitmq after %d attempts: %v", numberOfRetries, err)
 }

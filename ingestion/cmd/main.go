@@ -1,32 +1,17 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"log"
-	"time"
 
 	"github.com/jackc/pgx"
-	amqp "github.com/rabbitmq/amqp091-go"
 	"google.golang.org/protobuf/proto"
 
 	pb "github.com/AlexG28/megapack/proto/telemetry"
 )
 
-type TelemetryData struct {
-	UnitID             string  `json:"unit_id"`
-	State              string  `json:"state"`
-	Timestamp          string  `json:"timestamp"`
-	TemperatureCelcius float32 `json:"temperature"`
-	ChargeLevelPercent int     `json:"charge"`
-	ChargeCycle        int     `json:"cycle"`
-	Output             int     `json:"output"`
-	Runtime            int     `json:"runtime"`
-	Power              int     `json:"power"`
-}
-
 func main() {
-	time.Sleep(time.Second * 25)
+	// time.Sleep(time.Second * 25)
 	conn, err := openDBConnection()
 
 	if err != nil {
@@ -92,69 +77,6 @@ func main() {
 	<-forever
 }
 
-func openDBConnection() (*pgx.Conn, error) {
-	connStruct := pgx.ConnConfig{
-		User:     "postgres",
-		Password: "dbpassword",
-		Host:     "timescaledb",
-		Port:     5432,
-		Database: "postgres",
-	}
-
-	conn, err := pgx.Connect(connStruct)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to timescaleDB: %v", err)
-	}
-
-	return conn, nil
-}
-
-func openRabbitMQConnection(queueName string) (*amqp.Channel, *amqp.Queue, error) {
-	conn, err := amqp.Dial("amqp://guest:guest@rabbitmq:5672/")
-
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to dial rabbitmq: %v", err)
-	}
-
-	ch, err := conn.Channel()
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create channel: %v", err)
-	}
-	// queueName = "main"
-	q, err := ch.QueueDeclare(
-		queueName,
-		false,
-		false,
-		false,
-		false,
-		nil,
-	)
-
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to declare queue: %v", err)
-	}
-
-	err = ch.Qos(
-		1, 0, false,
-	)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to set QoS: %v", err)
-	}
-	return ch, &q, nil
-}
-
-func healthCheck(conn *pgx.Conn) error {
-	ctx := context.Background()
-
-	err := conn.Ping(ctx)
-	if err != nil {
-		return fmt.Errorf("ingestion DB healthcheck failed: %v", err)
-	}
-	fmt.Println("Healthcheck Successfull!")
-	return nil
-}
-
 func createTable(conn *pgx.Conn) error {
 	var exists bool
 	err := conn.QueryRow(`
@@ -192,35 +114,6 @@ func createTable(conn *pgx.Conn) error {
 	fmt.Println("Created table")
 
 	return nil
-}
-
-func addToDB(conn *pgx.Conn, dataChan <-chan TelemetryData) {
-	for data := range dataChan {
-		query := `INSERT INTO telemetry_data 
-		(unit_id, state, timestamp, temperature, charge, cycle, output, runtime, power) 
-		VALUES ($1, $2, $3::timestamptz, $4, $5, $6, $7, $8, $9)`
-
-		_, err := conn.Exec(
-			query,
-			data.UnitID,
-			data.State,
-			data.Timestamp,
-			data.TemperatureCelcius,
-			data.ChargeLevelPercent,
-			data.ChargeCycle,
-			data.Output,
-			data.Runtime,
-			data.Power,
-		)
-
-		if err != nil {
-			log.Printf("The error that occured in processData: %v\n", err)
-		}
-
-		if err != nil {
-			log.Printf("%v\n", err)
-		}
-	}
 }
 
 func convertProtoToTelData(proto *pb.TelemetryData) TelemetryData {

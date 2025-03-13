@@ -41,6 +41,7 @@ func PerformMonitoring(conn *pgx.Conn) error {
 		Charging    int
 		Idle        int
 		Fault       int
+		Count       int
 	}
 
 	stateCounts := []struct {
@@ -51,6 +52,7 @@ func PerformMonitoring(conn *pgx.Conn) error {
 		{&status.Charging, func() (int, error) { return getCountByState(conn, "charging") }},
 		{&status.Idle, func() (int, error) { return getCountByState(conn, "idle") }},
 		{&status.Fault, func() (int, error) { return getCountByState(conn, "fault", "maintenance") }},
+		{&status.Count, func() (int, error) { return getTotalCount(conn) }},
 	}
 
 	for _, sc := range stateCounts {
@@ -59,12 +61,6 @@ func PerformMonitoring(conn *pgx.Conn) error {
 			return fmt.Errorf("monitoring error: %w", err)
 		}
 		*sc.target = count
-	}
-
-	rowCount, err := getTotalCount(conn)
-
-	if err != nil {
-		return fmt.Errorf("monitoring error: %w", err)
 	}
 
 	const (
@@ -76,7 +72,7 @@ func PerformMonitoring(conn *pgx.Conn) error {
 	timestamp := time.Now().UTC().Format(timeFormat)
 	fmt.Println(separator)
 	fmt.Printf(statusFormat, timestamp,
-		rowCount, status.Charging, status.Discharging, status.Idle, status.Fault)
+		status.Count, status.Charging, status.Discharging, status.Idle, status.Fault)
 
 	return nil
 }
