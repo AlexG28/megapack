@@ -4,235 +4,86 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"time"
+	"os"
+	"os/signal"
+	"syscall"
 
-	"github.com/jackc/pgx"
-	amqp "github.com/rabbitmq/amqp091-go"
 	"google.golang.org/protobuf/proto"
+
+	"github.com/AlexG28/megapack/ingestion/message"
+	"github.com/AlexG28/megapack/ingestion/models"
+	"github.com/AlexG28/megapack/ingestion/storage"
+	"github.com/jackc/pgx"
+	"github.com/rabbitmq/amqp091-go"
 
 	pb "github.com/AlexG28/megapack/proto/telemetry"
 )
 
-type TelemetryData struct {
-	UnitID             string  `json:"unit_id"`
-	State              string  `json:"state"`
-	Timestamp          string  `json:"timestamp"`
-	TemperatureCelcius float32 `json:"temperature"`
-	ChargeLevelPercent int     `json:"charge"`
-	ChargeCycle        int     `json:"cycle"`
-	Output             int     `json:"output"`
-	Runtime            int     `json:"runtime"`
-	Power              int     `json:"power"`
-}
-
 func main() {
-	time.Sleep(time.Second * 25)
-	conn, err := openDBConnection()
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
+	conn, err := storage.Connect()
 	if err != nil {
 		log.Fatalf("Unable to connect to database: %v\n", err)
 	}
-
 	defer conn.Close()
 
-	if err = healthCheck(conn); err != nil {
+	if err = storage.HealthCheck(conn); err != nil {
 		log.Fatalf("Health check failed: %v\n", err)
 	}
 
-	err = createTable(conn)
-
-	if err != nil {
+	if err := storage.CreateTable(conn); err != nil {
 		log.Fatalf("Unable to create table: %v\n", err)
 	}
 
-	ch, q, err := openRabbitMQConnection("main")
+	fmt.Println("Storage successfully connected to and ready to accept data.")
+
+	ch, q, err := message.OpenRabbitMQConnection("main")
 
 	if err != nil {
 		log.Fatalf("Rabbitmq error: %v", err)
 	}
 
-	fmt.Println("Successfully established all the major connections and ready to injest data into DB")
-
 	defer ch.Close()
 
-	var forever chan struct{}
-	dataChan := make(chan TelemetryData, 100)
-
-	msgs, err := ch.Consume(
-		q.Name,
-		"",
-		true,
-		false,
-		false,
-		false,
-		nil,
-	)
+	msgs, err := message.GetMessages(ch, q)
 
 	if err != nil {
 		log.Fatalf("consume error: %v\n", err)
 	}
 
-	var telData TelemetryData
+	dataChan := make(chan models.TelemetryData, 100)
+	go processMessages(msgs, dataChan)
+	go storeTelemetry(conn, dataChan)
 
-	go func() {
-		for d := range msgs {
-			m := pb.TelemetryData{}
-			if err := proto.Unmarshal(d.Body, &m); err != nil {
-				log.Fatalf("error in decoding bytes into m")
+	log.Println("Ingestion successfully started and ready")
+	<-ctx.Done()
+	log.Println("Ingestion successfully started and ready")
+}
+
+func storeTelemetry(conn *pgx.Conn, dataChan chan models.TelemetryData) {
+	for {
+		select {
+		case data := <-dataChan:
+			if err := storage.AddToDB(conn, data); err != nil {
+				log.Printf("Failed to store telemetry: %v", err)
+			}
+		}
+	}
+}
+
+func processMessages(msgs <-chan amqp091.Delivery, dataChan chan models.TelemetryData) {
+	for {
+		select {
+		case msg := <-msgs:
+			var tel pb.TelemetryData
+			if err := proto.Unmarshal(msg.Body, &tel); err != nil {
+				log.Printf("Failed to unmarshall message: %v", err)
 				continue
 			}
 
-			telData = convertProtoToTelData(&m)
-			dataChan <- telData
+			dataChan <- models.ConvertProtoToTelData(&tel)
 		}
-	}()
-
-	go addToDB(conn, dataChan)
-
-	<-forever
-}
-
-func openDBConnection() (*pgx.Conn, error) {
-	connStruct := pgx.ConnConfig{
-		User:     "postgres",
-		Password: "dbpassword",
-		Host:     "timescaledb",
-		Port:     5432,
-		Database: "postgres",
-	}
-
-	conn, err := pgx.Connect(connStruct)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to timescaleDB: %v", err)
-	}
-
-	return conn, nil
-}
-
-func openRabbitMQConnection(queueName string) (*amqp.Channel, *amqp.Queue, error) {
-	conn, err := amqp.Dial("amqp://guest:guest@rabbitmq:5672/")
-
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to dial rabbitmq: %v", err)
-	}
-
-	ch, err := conn.Channel()
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create channel: %v", err)
-	}
-	// queueName = "main"
-	q, err := ch.QueueDeclare(
-		queueName,
-		false,
-		false,
-		false,
-		false,
-		nil,
-	)
-
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to declare queue: %v", err)
-	}
-
-	err = ch.Qos(
-		1, 0, false,
-	)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to set QoS: %v", err)
-	}
-	return ch, &q, nil
-}
-
-func healthCheck(conn *pgx.Conn) error {
-	ctx := context.Background()
-
-	err := conn.Ping(ctx)
-	if err != nil {
-		return fmt.Errorf("ingestion DB healthcheck failed: %v", err)
-	}
-	fmt.Println("Healthcheck Successfull!")
-	return nil
-}
-
-func createTable(conn *pgx.Conn) error {
-	var exists bool
-	err := conn.QueryRow(`
-	SELECT EXISTS (
-		SELECT FROM information_schema.tables 
-		WHERE table_name = 'telemetry_data'
-	)`).Scan(&exists)
-
-	if err != nil {
-		return fmt.Errorf("error checking if table exists: %w", err)
-	}
-
-	if exists {
-		log.Println("The table already exists!")
-		return nil
-	}
-
-	sql := `CREATE TABLE telemetry_data (
-		unit_id VARCHAR(255),
-		state VARCHAR(255),
-		timestamp TIMESTAMPTZ,
-		temperature FLOAT,
-		charge INT,
-		cycle INT,
-		output INT,
-		runtime INT,
-		power INT);`
-
-	_, err = conn.Exec(sql)
-
-	if err != nil {
-		return fmt.Errorf("error creating table: %w", err)
-	}
-
-	fmt.Println("Created table")
-
-	return nil
-}
-
-func addToDB(conn *pgx.Conn, dataChan <-chan TelemetryData) {
-	for data := range dataChan {
-		query := `INSERT INTO telemetry_data 
-		(unit_id, state, timestamp, temperature, charge, cycle, output, runtime, power) 
-		VALUES ($1, $2, $3::timestamptz, $4, $5, $6, $7, $8, $9)`
-
-		_, err := conn.Exec(
-			query,
-			data.UnitID,
-			data.State,
-			data.Timestamp,
-			data.TemperatureCelcius,
-			data.ChargeLevelPercent,
-			data.ChargeCycle,
-			data.Output,
-			data.Runtime,
-			data.Power,
-		)
-
-		if err != nil {
-			log.Printf("The error that occured in processData: %v\n", err)
-		}
-
-		if err != nil {
-			log.Printf("%v\n", err)
-		}
-	}
-}
-
-func convertProtoToTelData(proto *pb.TelemetryData) TelemetryData {
-	return TelemetryData{
-		UnitID:             proto.GetUnitId(),
-		State:              proto.GetState(),
-		Timestamp:          proto.GetTimestamp(),
-		TemperatureCelcius: proto.GetTemperature(),
-		ChargeLevelPercent: int(proto.GetCharge()),
-		ChargeCycle:        int(proto.GetCycle()),
-		Output:             int(proto.GetOutput()),
-		Runtime:            int(proto.GetRuntime()),
-		Power:              int(proto.GetPower()),
 	}
 }
