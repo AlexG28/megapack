@@ -41,7 +41,6 @@ func AddToDB(conn *pgx.Conn, dataChan <-chan models.TelemetryData) {
 
 func HealthCheck(conn *pgx.Conn) error {
 	ctx := context.Background()
-
 	err := conn.Ping(ctx)
 	if err != nil {
 		return fmt.Errorf("ingestion DB healthcheck failed: %v", err)
@@ -50,7 +49,46 @@ func HealthCheck(conn *pgx.Conn) error {
 	return nil
 }
 
-func OpenDBConnection() (*pgx.Conn, error) {
+func CreateTable(conn *pgx.Conn) error {
+	var exists bool
+	err := conn.QueryRow(`
+	SELECT EXISTS (
+		SELECT FROM information_schema.tables 
+		WHERE table_name = 'telemetry_data'
+	)`).Scan(&exists)
+
+	if err != nil {
+		return fmt.Errorf("error checking if table exists: %w", err)
+	}
+
+	if exists {
+		log.Println("The table already exists!")
+		return nil
+	}
+
+	sql := `CREATE TABLE telemetry_data (
+		unit_id VARCHAR(255),
+		state VARCHAR(255),
+		timestamp TIMESTAMPTZ,
+		temperature FLOAT,
+		charge INT,
+		cycle INT,
+		output INT,
+		runtime INT,
+		power INT);`
+
+	_, err = conn.Exec(sql)
+
+	if err != nil {
+		return fmt.Errorf("error creating table: %w", err)
+	}
+
+	fmt.Println("Created table")
+
+	return nil
+}
+
+func Connect() (*pgx.Conn, error) {
 	connStruct := pgx.ConnConfig{
 		User:     "postgres",
 		Password: "dbpassword",

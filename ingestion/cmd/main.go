@@ -4,34 +4,32 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/jackc/pgx"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/AlexG28/megapack/ingestion/message"
 	"github.com/AlexG28/megapack/ingestion/models"
 	"github.com/AlexG28/megapack/ingestion/storage"
+	"github.com/rabbitmq/amqp091-go"
 
 	pb "github.com/AlexG28/megapack/proto/telemetry"
 )
 
 func main() {
-	conn, err := storage.OpenDBConnection()
-
+	conn, err := storage.Connect()
 	if err != nil {
 		log.Fatalf("Unable to connect to database: %v\n", err)
 	}
-
 	defer conn.Close()
 
 	if err = storage.HealthCheck(conn); err != nil {
 		log.Fatalf("Health check failed: %v\n", err)
 	}
 
-	err = createTable(conn)
-
-	if err != nil {
+	if err := storage.CreateTable(conn); err != nil {
 		log.Fatalf("Unable to create table: %v\n", err)
 	}
+
+	fmt.Println("Storage successfully connected to and ready to accept data.")
 
 	ch, q, err := message.OpenRabbitMQConnection("main")
 
@@ -39,84 +37,36 @@ func main() {
 		log.Fatalf("Rabbitmq error: %v", err)
 	}
 
-	fmt.Println("Successfully established all the major connections and ready to injest data into DB")
-
 	defer ch.Close()
 
-	var forever chan struct{}
-	dataChan := make(chan models.TelemetryData, 100)
-
-	msgs, err := ch.Consume(
-		q.Name,
-		"",
-		true,
-		false,
-		false,
-		false,
-		nil,
-	)
+	msgs, err := message.GetMessages(ch, q)
 
 	if err != nil {
 		log.Fatalf("consume error: %v\n", err)
 	}
 
-	var telData models.TelemetryData
+	fmt.Println("Successfully established all the major connections and ready to injest data into DB")
 
-	go func() {
-		for d := range msgs {
-			m := pb.TelemetryData{}
-			if err := proto.Unmarshal(d.Body, &m); err != nil {
-				log.Fatalf("error in decoding bytes into m")
-				continue
-			}
-
-			telData = convertProtoToTelData(&m)
-			dataChan <- telData
-		}
-	}()
-
+	var forever chan struct{}
+	dataChan := make(chan models.TelemetryData, 100)
+	go unMarshallMessages(msgs, dataChan)
 	go storage.AddToDB(conn, dataChan)
 
 	<-forever
 }
 
-func createTable(conn *pgx.Conn) error {
-	var exists bool
-	err := conn.QueryRow(`
-	SELECT EXISTS (
-		SELECT FROM information_schema.tables 
-		WHERE table_name = 'telemetry_data'
-	)`).Scan(&exists)
+func unMarshallMessages(msgs <-chan amqp091.Delivery, dataChan chan models.TelemetryData) {
+	var telData models.TelemetryData
+	for d := range msgs {
+		m := pb.TelemetryData{}
+		if err := proto.Unmarshal(d.Body, &m); err != nil {
+			log.Fatalf("error in decoding bytes into m")
+			continue
+		}
 
-	if err != nil {
-		return fmt.Errorf("error checking if table exists: %w", err)
+		telData = convertProtoToTelData(&m)
+		dataChan <- telData
 	}
-
-	if exists {
-		log.Println("The table already exists!")
-		return nil
-	}
-
-	sql := `CREATE TABLE telemetry_data (
-		unit_id VARCHAR(255),
-		state VARCHAR(255),
-		timestamp TIMESTAMPTZ,
-		temperature FLOAT,
-		charge INT,
-		cycle INT,
-		output INT,
-		runtime INT,
-		power INT);`
-
-	_, err = conn.Exec(sql)
-
-	if err != nil {
-		return fmt.Errorf("error creating table: %w", err)
-	}
-
-	fmt.Println("Created table")
-
-	return nil
 }
 
 func convertProtoToTelData(proto *pb.TelemetryData) models.TelemetryData {

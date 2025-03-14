@@ -5,6 +5,8 @@ import (
 	"log"
 	"time"
 
+	"github.com/rabbitmq/amqp091-go"
+
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
@@ -39,7 +41,7 @@ func OpenRabbitMQConnection(queueName string) (*amqp.Channel, *amqp.Queue, error
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create channel: %v", err)
 	}
-	// queueName = "main"
+
 	q, err := ch.QueueDeclare(
 		queueName,
 		false,
@@ -60,4 +62,16 @@ func OpenRabbitMQConnection(queueName string) (*amqp.Channel, *amqp.Queue, error
 		return nil, nil, fmt.Errorf("failed to set QoS: %v", err)
 	}
 	return ch, &q, nil
+}
+
+func GetMessages(ch *amqp091.Channel, q *amqp091.Queue) (<-chan amqp091.Delivery, error) {
+	return ch.Consume(
+		q.Name,
+		"",
+		true,
+		false,
+		false,
+		false,
+		nil,
+	)
 }
