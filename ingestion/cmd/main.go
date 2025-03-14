@@ -1,8 +1,12 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"google.golang.org/protobuf/proto"
 
@@ -16,6 +20,9 @@ import (
 )
 
 func main() {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
 	conn, err := storage.Connect()
 	if err != nil {
 		log.Fatalf("Unable to connect to database: %v\n", err)
@@ -46,14 +53,13 @@ func main() {
 		log.Fatalf("consume error: %v\n", err)
 	}
 
-	fmt.Println("Successfully established all the major connections and ready to injest data into DB")
-
-	var forever chan struct{}
 	dataChan := make(chan models.TelemetryData, 100)
 	go processMessages(msgs, dataChan)
 	go storeTelemetry(conn, dataChan)
 
-	<-forever
+	log.Println("Ingestion successfully started and ready")
+	<-ctx.Done()
+	log.Println("Ingestion successfully started and ready")
 }
 
 func storeTelemetry(conn *pgx.Conn, dataChan chan models.TelemetryData) {
