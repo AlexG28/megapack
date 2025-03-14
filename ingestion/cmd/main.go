@@ -9,6 +9,7 @@ import (
 	"github.com/AlexG28/megapack/ingestion/message"
 	"github.com/AlexG28/megapack/ingestion/models"
 	"github.com/AlexG28/megapack/ingestion/storage"
+	"github.com/jackc/pgx"
 	"github.com/rabbitmq/amqp091-go"
 
 	pb "github.com/AlexG28/megapack/proto/telemetry"
@@ -49,36 +50,34 @@ func main() {
 
 	var forever chan struct{}
 	dataChan := make(chan models.TelemetryData, 100)
-	go unMarshallMessages(msgs, dataChan)
-	go storage.AddToDB(conn, dataChan)
+	go processMessages(msgs, dataChan)
+	go storeTelemetry(conn, dataChan)
 
 	<-forever
 }
 
-func unMarshallMessages(msgs <-chan amqp091.Delivery, dataChan chan models.TelemetryData) {
-	var telData models.TelemetryData
-	for d := range msgs {
-		m := pb.TelemetryData{}
-		if err := proto.Unmarshal(d.Body, &m); err != nil {
-			log.Fatalf("error in decoding bytes into m")
-			continue
+func storeTelemetry(conn *pgx.Conn, dataChan chan models.TelemetryData) {
+	for {
+		select {
+		case data := <-dataChan:
+			if err := storage.AddToDB(conn, data); err != nil {
+				log.Printf("Failed to store telemetry: %v", err)
+			}
 		}
-
-		telData = convertProtoToTelData(&m)
-		dataChan <- telData
 	}
 }
 
-func convertProtoToTelData(proto *pb.TelemetryData) models.TelemetryData {
-	return models.TelemetryData{
-		UnitID:             proto.GetUnitId(),
-		State:              proto.GetState(),
-		Timestamp:          proto.GetTimestamp(),
-		TemperatureCelcius: proto.GetTemperature(),
-		ChargeLevelPercent: int(proto.GetCharge()),
-		ChargeCycle:        int(proto.GetCycle()),
-		Output:             int(proto.GetOutput()),
-		Runtime:            int(proto.GetRuntime()),
-		Power:              int(proto.GetPower()),
+func processMessages(msgs <-chan amqp091.Delivery, dataChan chan models.TelemetryData) {
+	for {
+		select {
+		case msg := <-msgs:
+			var tel pb.TelemetryData
+			if err := proto.Unmarshal(msg.Body, &tel); err != nil {
+				log.Printf("Failed to unmarshall message: %v", err)
+				continue
+			}
+
+			dataChan <- models.ConvertProtoToTelData(&tel)
+		}
 	}
 }
