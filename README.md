@@ -1,6 +1,6 @@
 # Megapack Energy Monitoring Backend System
 
-This project implements a realistic backend system for monitoring and managing Tesla Megapack energy storage units. It showcases a microservices architecture leveraging modern technologies to simulate data ingestion, processing, storage, and monitoring of a large-scale energy system.
+This project implements a backend system for monitoring and managing Tesla Megapack energy storage units. It showcases a microservices architecture leveraging modern technologies to simulate data ingestion, processing, storage, and monitoring of a large-scale energy system.
 
 ## Project Overview
 
@@ -51,7 +51,7 @@ This project simulates a backend infrastructure designed to manage telemetry dat
 
 ![System Diagram](imgs/system_design.jpg)
 
-The system follows a microservices architecture with distinct components working together to simulate a realistic energy monitoring backend:
+The system follows a microservices architecture with distinct components working together to provide an energy monitoring backend:
 
 1.  **Megapack Simulators:** Generate and send telemetry data.
 2.  **API Gateway:**  Receives, validates, and forwards data asynchronously via RabbitMQ.
@@ -62,7 +62,7 @@ The system follows a microservices architecture with distinct components working
 
 ## Future Enhancements
 
-This project provides a solid foundation for a realistic energy monitoring backend. Future development could include:
+This project provides a solid foundation for an energy monitoring backend. Future development could include:
 
 *   **Robust Unit and Integration Tests:** Implementing comprehensive unit and integration tests to ensure code reliability and system stability.
 *   **API Gateway Authentication:** Adding robust authentication mechanisms (e.g., API Keys, OAuth 2.0) to secure the API Gateway and control access to the system.
