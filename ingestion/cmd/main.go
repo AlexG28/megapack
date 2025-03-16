@@ -23,7 +23,7 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	conn, err := storage.Connect()
+	conn, err := storage.ConnectToStorage()
 	if err != nil {
 		log.Fatalf("Unable to connect to database: %v\n", err)
 	}
