@@ -75,3 +75,5 @@ This project provides a solid foundation for an energy monitoring backend. Futur
 
 # Startup Instructions: 
 - Run `docker-compose up --build`
+    - It takes roughly 30 seconds to start all the containers. 
+- Stop this system by interrupting with with `ctrl-c` 

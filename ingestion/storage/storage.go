@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/AlexG28/megapack/ingestion/models"
 
@@ -83,7 +84,10 @@ func CreateTable(conn *pgx.Conn) error {
 	return nil
 }
 
-func Connect() (*pgx.Conn, error) {
+func ConnectToStorage() (*pgx.Conn, error) {
+	numberOfRetries := 30
+	var err error
+
 	connStruct := pgx.ConnConfig{
 		User:     "postgres",
 		Password: "dbpassword",
@@ -92,11 +96,17 @@ func Connect() (*pgx.Conn, error) {
 		Database: "postgres",
 	}
 
-	conn, err := pgx.Connect(connStruct)
+	for range numberOfRetries {
+		conn, err := pgx.Connect(connStruct)
 
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to timescaleDB: %v", err)
+		if err == nil {
+			return conn, nil
+		}
+
+		log.Println("failed to connect to timescaleDB, trying again")
+		time.Sleep(2 * time.Second)
+
 	}
 
-	return conn, nil
+	return nil, fmt.Errorf("failed to connect to timescaleDB: %v", err)
 }

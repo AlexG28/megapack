@@ -62,7 +62,7 @@ func connectToRabbitMq(url string) (*amqp.Connection, error) {
 		}
 
 		log.Println("failed to connect to RabbitMQ, trying again")
-		time.Sleep(1 * time.Second)
+		time.Sleep(2 * time.Second)
 
 	}
 

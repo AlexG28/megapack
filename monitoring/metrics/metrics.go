@@ -35,7 +35,7 @@ func getCountByState(conn *pgx.Conn, states ...string) (int, error) {
 	return count, nil
 }
 
-func PerformMonitoring(conn *pgx.Conn) error {
+func Monitor(conn *pgx.Conn) error {
 	var status struct {
 		Discharging int
 		Charging    int
